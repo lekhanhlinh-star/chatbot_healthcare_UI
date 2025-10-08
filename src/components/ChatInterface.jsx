@@ -20,17 +20,31 @@ const ChatInterface = ({
 }) => {
   const chatLogRef = useRef(null)
 
-  useEffect(() => {
+  const scrollToBottom = () => {
     if (chatLogRef.current) {
-      const chatBox = chatLogRef.current.parentElement
-      chatBox.scrollTop = chatLogRef.current.scrollHeight
+      const chatElement = chatLogRef.current
+      chatElement.scrollTop = chatElement.scrollHeight
     }
+  }
+
+  useEffect(() => {
+    // Auto scroll to bottom when new messages are added
+    scrollToBottom()
   }, [chatMessages])
+
+  useEffect(() => {
+    // Also scroll when loading state changes
+    if (!isLoading) {
+      setTimeout(scrollToBottom, 100)
+    }
+  }, [isLoading])
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       onSendMessage()
+      // Scroll after sending message
+      setTimeout(scrollToBottom, 50)
     }
   }
 
