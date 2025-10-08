@@ -1,15 +1,23 @@
 import { useState, useEffect, useRef } from 'react'
+import SpecialtySelection from './components/SpecialtySelection'
+import Sidebar from './components/Sidebar' 
+import ChatInterface from './components/ChatInterface'
 import './App.css'
 
 function App() {
-  // Environment variables
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+  // Environment variables - auto detect development vs production
+  const isDevelopment = import.meta.env.DEV
+  const API_BASE_URL = isDevelopment 
+    ? '/api'  // Use proxy in development
+    : 'https://2bc1ibzx0tr8d8.api.runpod.ai'  // Direct URL in production
   const API_AUTHORIZATION = import.meta.env.VITE_API_AUTHORIZATION
-  
+
+  const [currentView, setCurrentView] = useState('specialty') // 'specialty' or 'chat'
   const [sidebarHidden, setSidebarHidden] = useState(true)
   const [selectedDoctor, setSelectedDoctor] = useState('/static/images/male_doctor.jpg')
   const [selectedRole, setSelectedRole] = useState('doctor')
   const [selectedName, setSelectedName] = useState('藥劑師')
+  const [selectedSpecialty, setSelectedSpecialty] = useState(null)
   const [chatMessages, setChatMessages] = useState([
     { role: 'bot', text: '您好！我可以為您提供什麼協助？' }
   ])
@@ -52,42 +60,36 @@ function App() {
   ]
 
   useEffect(() => {
+    // Check if user has already selected a specialty
+    const savedSpecialty = localStorage.getItem("selectedSpecialty")
     const savedDoctor = localStorage.getItem("selectedDoctor")
     const savedRole = localStorage.getItem("selectedRole")
+    const savedRoleName = localStorage.getItem("selectedRoleName")
     
-    if (savedDoctor && savedRole) {
+    if (savedSpecialty && savedDoctor && savedRole && savedRoleName) {
+      setSelectedSpecialty(savedSpecialty)
       setSelectedDoctor(savedDoctor)
       setSelectedRole(savedRole)
-      setSelectedName(savedDoctor.includes("/male_doctor") ? "藥劑師" : "營養師")
-    } else {
-      selectCharacter('/static/images/male_doctor.jpg')
+      setSelectedName(savedRoleName)
+      setCurrentView('chat')
     }
   }, [])
 
-  useEffect(() => {
-    if (chatLogRef.current) {
-      const chatBox = chatLogRef.current.parentElement
-      chatBox.scrollTop = chatLogRef.current.scrollHeight
-    }
-  }, [chatMessages])
+  const handleSelectSpecialty = (specialty) => {
+    setSelectedSpecialty(specialty.id)
+    setSelectedDoctor(specialty.image)
+    setSelectedRole(specialty.role)
+    setSelectedName(specialty.roleName)
+    setCurrentView('chat')
+  }
 
-  const selectCharacter = (src) => {
-    let role = "unknown"
-    let name = ""
-    
-    if (src.includes("/male_doctor")) {
-      role = "doctor"
-      name = "藥劑師"
-    } else if (src.includes("/female_doctor")) {
-      role = "nutritionist"
-      name = "營養師"
-    }
-    
+  const selectCharacter = (src, role, name) => {
     setSelectedDoctor(src)
     setSelectedRole(role)
     setSelectedName(name)
     localStorage.setItem("selectedDoctor", src)
     localStorage.setItem("selectedRole", role)
+    localStorage.setItem("selectedRoleName", name)
     setSidebarHidden(true)
   }
 
@@ -198,155 +200,112 @@ function App() {
 
   const changeQuestions = () => {
     const filtered = questions.filter(q => q.trim() !== currentQuestion.trim())
-    if (filtered.length === 0) return
-    
-    const newQuestion = filtered[Math.floor(Math.random() * filtered.length)]
-    setCurrentQuestion(newQuestion)
+    if (filtered.length > 0) {
+      const randomIndex = Math.floor(Math.random() * filtered.length)
+      setCurrentQuestion(filtered[randomIndex])
+    }
   }
 
-  const handleSuggestClick = () => {
-    setChatInput(currentQuestion)
-    sendMessage()
+  const sendDirectMessage = async (text) => {
+    if (text.trim()) {
+      setIsLoading(true)
+      appendChatMessage("user", text)
+      setChatInput("")
+      
+      const formData = new FormData()
+      formData.append("question", text)
+      formData.append("role", selectedRole)
+      formData.append("responseWithAudio", responseWithAudio)
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/ask`, {
+          method: "POST",
+          headers: {
+            'Authorization': API_AUTHORIZATION
+          },
+          body: formData
+        })
+
+        const result = await response.json()
+        appendChatMessage("bot", result.answer)
+        
+        if ("audio_base64" in result) {
+          playRemoteMP3(result.audio_base64)
+        }
+      } catch (error) {
+        appendChatMessage("bot", "❌ 錯誤：無法取得回應")
+      }
+      
+      setIsLoading(false)
+    }
+  }
+
+  const handleQuestionSelect = async (question) => {
+    // Gửi câu hỏi trực tiếp
+    await sendDirectMessage(question)
+    // Thay đổi câu hỏi gợi ý
     changeQuestions()
   }
 
-  const downloadChatLog = () => {
-    const messages = chatMessages
-      .map(msg => {
-        const role = msg.role === "bot" ? "Bot" : "User"
-        return `${role}: ${msg.text}`
-      })
-      .join("\n")
-
-    const blob = new Blob([messages], { type: "text/plain" })
-    const url = URL.createObjectURL(blob)
-
-    const a = document.createElement("a")
-    a.href = url
-    a.download = "chatlog.txt"
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  const handleBackToSpecialty = () => {
+    // Clear localStorage and go back to specialty selection
+    localStorage.removeItem('selectedSpecialty')
+    localStorage.removeItem('selectedDoctor')
+    localStorage.removeItem('selectedRole')
+    localStorage.removeItem('selectedRoleName')
+    setCurrentView('specialty')
+    setChatMessages([{ role: 'bot', text: '您好！我可以為您提供什麼協助？' }])
   }
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      sendMessage()
-    }
+  if (currentView === 'specialty') {
+    return <SpecialtySelection onSelectSpecialty={handleSelectSpecialty} />
   }
 
   return (
     <div className="container">
+      {/* Toggle Sidebar Button */}
       <button 
-        id="toggleSidebarBtn" 
         className="toggle-sidebar"
         onClick={() => setSidebarHidden(!sidebarHidden)}
       >
         選擇諮商人員
       </button>
 
-      <aside className={`sidebar ${sidebarHidden ? 'hidden' : ''}`}>
-        <h2>選擇要諮商的虛擬醫事人員</h2>
-        <div className="character-list">
-          <img 
-            src="/static/images/male_doctor.jpg" 
-            alt="醫生 1" 
-            className="thumbnail" 
-            onClick={() => selectCharacter('/static/images/male_doctor.jpg')}
-          />
-          <b>藥劑師</b>
-          <img 
-            src="/static/images/female_doctor.jpg" 
-            alt="醫生 2" 
-            className="thumbnail" 
-            onClick={() => selectCharacter('/static/images/female_doctor.jpg')}
-          />
-          <b>營養師</b>
-        </div>
-      </aside>
+      {/* Back to Specialty Button */}
+      <button 
+        className="back-to-specialty"
+        onClick={handleBackToSpecialty}
+      >
+        🔙 重新選擇專科
+      </button>
 
-      <main className="main-content">
-        <div className="selected-character">
-          <h2>目前選擇的醫事人員</h2>
-          <img id="selectedImg" src={selectedDoctor} alt="選擇的醫生" />
-          <b id="selectedName">{selectedName}</b>
-        </div>
+      <Sidebar 
+        isHidden={sidebarHidden}
+        onSelectCharacter={selectCharacter}
+        selectedDoctor={selectedDoctor}
+        selectedRole={selectedRole}
+      />
 
-        <div className="chat-box">
-          <h2>對話紀錄</h2>
-          <div id="chatLog" className="chat-log" ref={chatLogRef}>
-            {chatMessages.map((message, index) => (
-              <div key={index} className={`chat-message ${message.role}`}>
-                {message.text}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="controls">
-          <div className="chat-input-container">
-            <input 
-              type="text" 
-              id="chatInput" 
-              placeholder="請輸入訊息..." 
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-            />
-            <button id="sendBtn" onClick={sendMessage}>📤 發送</button>
-            <button id="micBtn" onClick={handleMicClick}>
-              {isRecording ? '🛑' : '🎤'}
-            </button>
-          </div>
-          
-          <div style={{display: 'flex', alignItems: 'center', gap: '1rem'}}>
-            <label style={{display: 'flex', alignItems: 'center'}}>
-              <input 
-                type="checkbox" 
-                id="responseWithAudio" 
-                style={{marginRight: '0.4rem'}}
-                checked={responseWithAudio}
-                onChange={(e) => setResponseWithAudio(e.target.checked)}
-              />
-              Response with audio
-            </label>
-          
-            <button id="downloadBtn" onClick={downloadChatLog}>
-              Download ChatLog
-            </button>
-          </div>
-          
-          <div id="suggestedQuestions" style={{marginTop: '20px'}}>
-            <h3>💡 你可以問我：</h3>
-            <div style={{display: 'flex', flexWrap: 'wrap', gap: '8px'}}>
-              <button className="suggest-btn" onClick={handleSuggestClick}>
-                {currentQuestion}
-              </button>
-            </div>
-          </div>
-        </div>
-      </main>
+      <ChatInterface 
+        chatMessages={chatMessages}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        onSendMessage={sendMessage}
+        onMicClick={handleMicClick}
+        isRecording={isRecording}
+        isLoading={isLoading}
+        responseWithAudio={responseWithAudio}
+        setResponseWithAudio={setResponseWithAudio}
+        selectedDoctor={selectedDoctor}
+        selectedName={selectedName}
+        selectedSpecialty={selectedSpecialty}
+        questions={questions}
+        currentQuestion={currentQuestion}
+        onQuestionSelect={handleQuestionSelect}
+      />
 
       {isLoading && (
-        <div 
-          id="loadingDialog" 
-          style={{
-            display: 'flex',
-            position: 'fixed',
-            top: 0, 
-            left: 0,
-            width: '100%', 
-            height: '100%',
-            background: 'rgba(0,0,0,0.5)',
-            zIndex: 9999,
-            justifyContent: 'center',
-            alignItems: 'center',
-            fontSize: '1.5rem',
-            color: 'white',
-            fontWeight: 'bold'
-          }}
-        >
+        <div className="loading-overlay">
           ⏳ Processing...
         </div>
       )}
