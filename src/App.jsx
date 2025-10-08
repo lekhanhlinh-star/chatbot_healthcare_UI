@@ -157,8 +157,8 @@ function App() {
             body: formData
           })
 
-          const result = await response.text()
-          setChatInput(result)
+          const result = await response.json()
+          setChatInput(result.text || result)
         } catch (error) {
           appendChatMessage("bot", "❌ 錯誤：無法辨識音訊")
         }
