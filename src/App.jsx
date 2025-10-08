@@ -5,11 +5,8 @@ import ChatInterface from './components/ChatInterface'
 import './App.css'
 
 function App() {
-  // Environment variables - auto detect development vs production
-  const isDevelopment = import.meta.env.DEV
-  const API_BASE_URL = isDevelopment 
-    ? '/api'  // Use proxy in development
-    : 'https://2bc1ibzx0tr8d8.api.runpod.ai'  // Direct URL in production
+  // Environment variables
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
   const API_AUTHORIZATION = import.meta.env.VITE_API_AUTHORIZATION
 
   const [currentView, setCurrentView] = useState('specialty') // 'specialty' or 'chat'

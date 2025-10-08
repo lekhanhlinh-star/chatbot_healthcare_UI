@@ -7,7 +7,7 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'https://2bc1ibzx0tr8d8.api.runpod.ai',
+        target: 'https://3pltf86w1lx8ow.api.runpod.ai',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         secure: true,
