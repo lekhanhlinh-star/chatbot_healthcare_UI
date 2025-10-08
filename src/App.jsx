@@ -260,21 +260,22 @@ function App() {
 
   return (
     <div className="container">
-      {/* Toggle Sidebar Button */}
-      <button 
-        className="toggle-sidebar"
-        onClick={() => setSidebarHidden(!sidebarHidden)}
-      >
-        選擇諮商人員
-      </button>
+      {/* Navigation Bar */}
+      <div className="nav-buttons">
+        <button 
+          className="toggle-sidebar"
+          onClick={() => setSidebarHidden(!sidebarHidden)}
+        >
+          選擇諮商人員
+        </button>
 
-      {/* Back to Specialty Button */}
-      <button 
-        className="back-to-specialty"
-        onClick={handleBackToSpecialty}
-      >
-        🔙 重新選擇專科
-      </button>
+        <button 
+          className="back-to-specialty"
+          onClick={handleBackToSpecialty}
+        >
+          🔙 重新選擇專科
+        </button>
+      </div>
 
       <Sidebar 
         isHidden={sidebarHidden}

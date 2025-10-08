@@ -299,4 +299,9 @@
   .question-buttons {
     justify-content: center;
   }
+
+  /* Adjust for fixed nav bar */
+  .selected-character {
+    margin-top: 10px;
+  }
 }
